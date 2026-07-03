@@ -5,35 +5,58 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Link Checker</title>
     <style>
-      body { font-family: Arial, sans-serif; margin: 2rem; }
+      body {
+        font-family: Arial, sans-serif;
+        margin: 2rem;
+        background: url('{{ url_for('assets', path='background.jpg') }}') center center / cover no-repeat fixed;
+        background-color: #111;
+      }
       .centered { text-align: center; }
       .centered form { display: inline-flex; gap: 0.5rem; justify-content: center; margin: 0 auto 1.5rem; }
       .centered input[type="text"] { width: 300px; padding: 0.5rem; }
       button { padding: 0.5rem 1rem; }
       .healthy { color: green; font-weight: bold; }
       .unhealthy { color: red; font-weight: bold; }
-      .hidden-row { color: #777; background: #f7f7f7; }
+      .panel {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 2rem;
+        background: rgba(0, 0, 0, 0.65);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 16px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+        color: #f5f5f5;
+      }
+      .centered { text-align: center; }
+      .centered form { display: inline-flex; gap: 0.5rem; justify-content: center; margin: 0 auto 1.5rem; }
+      .centered input[type="text"] { width: 300px; padding: 0.5rem; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.08); color: #fff; }
+      .centered button { color: #fff; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.08); }
+      .centered button:hover { background: rgba(255,255,255,0.14); }
+      .hidden-row { color: #bbb; background: transparent; }
       .hidden-row td { opacity: 0.7; }
-      table { border-collapse: collapse; width: 100%; }
-      th, td { border: 1px solid #ccc; padding: 0.5rem; text-align: left; }
+      table { border-collapse: collapse; width: 100%; background: rgba(255, 255, 255, 0.05); margin-top: 1.5rem; }
+      th, td { border: 1px solid rgba(255, 255, 255, 0.15); padding: 0.75rem; text-align: left; }
+      th { color: #fff; }
+      td { color: #e5e5e5; }
     </style>
   </head>
   <body>
-    <div class="centered">
-      <div>
-        <h1>Link Health Checker</h1>
-        <p>Enter a URL to check its health and track it for later polling.</p>
+    <div class="panel">
+      <div class="centered">
+        <div>
+          <h1>Link Health Checker</h1>
+          <p>Enter a URL to check its health and track it for later polling.</p>
+        </div>
+        <form action="/links" method="post">
+          <input type="text" name="url" placeholder="https://example.com" required />
+          <button type="submit">Add Link</button>
+        </form>
+        <form action="/refresh" method="post">
+          <button type="submit" onclick="return confirm('Refresh all links now? This will run checks immediately.');">Refresh All</button>
+        </form>
       </div>
-      <form action="/links" method="post">
-        <input type="text" name="url" placeholder="https://example.com" required />
-        <button type="submit">Add Link</button>
-      </form>
-      <form action="/refresh" method="post">
-        <button type="submit" onclick="return confirm('Refresh all links now? This will run checks immediately.');">Refresh All</button>
-      </form>
-    </div>
-
-    <table>
+      <div class="table-wrap">
+        <table>
       <thead>
         <tr>
           <th>URL</th>
@@ -59,7 +82,7 @@
             <a href="/links/{{ link.id }}/chart" target="_blank" rel="noopener noreferrer">
               <button type="button">Plot Applicants</button>
             </a>
-            <form action="/links/{{ link.id }}/delete" method="post" style="margin: 0; margin-top: 0.25rem;">
+            <form action="/links/{{ link.id }}/delete" method="post" style="margin: 0; margin-top: 0.25rem; display:inline-block;">
               <button type="submit">Stop Polling</button>
             </form>
           </td>
@@ -71,5 +94,7 @@
         {% endfor %}
       </tbody>
     </table>
-  </body>
+  </div>
+</div>
+</body>
 </html>

@@ -48,6 +48,7 @@ async def lifespan(app: FastAPI):
     print("Scheduler stopped.")
 
 app = FastAPI(title="Link Checker", lifespan=lifespan)
+app.mount("/assets", StaticFiles(directory=str(Path(__file__).resolve().parent.parent)), name="assets")
 # app.mount("/static", StaticFiles(directory="static"), name="static")
 # app.mount("/images", StaticFiles(directory="images"), name="images")
 
