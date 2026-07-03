@@ -21,6 +21,10 @@ from contextlib import asynccontextmanager
 # scheduler
 from apscheduler.schedulers.background import BackgroundScheduler
 
+#front end templating
+
+from fastapi.staticfiles import StaticFiles
+
 DB_PATH = Path(__file__).resolve().parent / "links.db"
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
 
@@ -44,7 +48,8 @@ async def lifespan(app: FastAPI):
     print("Scheduler stopped.")
 
 app = FastAPI(title="Link Checker", lifespan=lifespan)
-
+# app.mount("/static", StaticFiles(directory="static"), name="static")
+# app.mount("/images", StaticFiles(directory="images"), name="images")
 
 
 class LinkHTMLParser(HTMLParser):

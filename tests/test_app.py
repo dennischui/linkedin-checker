@@ -6,8 +6,8 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from app import main
-from app.main import app, determine_health_status, extract_page_fields, extract_placeholder_fields
+from . import main
+from main import app, determine_health_status, extract_page_fields, extract_placeholder_fields
 
 
 def test_determine_health_status_marks_200_as_healthy():

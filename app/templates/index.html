@@ -6,8 +6,9 @@
     <title>Link Checker</title>
     <style>
       body { font-family: Arial, sans-serif; margin: 2rem; }
-      form { margin-bottom: 1.5rem; }
-      input[type="text"] { width: 300px; padding: 0.5rem; }
+      .centered { text-align: center; }
+      .centered form { display: inline-flex; gap: 0.5rem; justify-content: center; margin: 0 auto 1.5rem; }
+      .centered input[type="text"] { width: 300px; padding: 0.5rem; }
       button { padding: 0.5rem 1rem; }
       .healthy { color: green; font-weight: bold; }
       .unhealthy { color: red; font-weight: bold; }
@@ -18,17 +19,19 @@
     </style>
   </head>
   <body>
-    <h1>Link Health Checker</h1>
-    <p>Enter a URL to check its health and track it for later polling.</p>
-
-    <form action="/links" method="post">
-      <input type="text" name="url" placeholder="https://example.com" required />
-      <button type="submit">Add Link</button>
-    </form>
-
-    <form action="/refresh" method="post" style="display:inline; margin-left: 1rem;">
-      <button type="submit" onclick="return confirm('Refresh all links now? This will run checks immediately.');">Refresh All</button>
-    </form>
+    <div class="centered">
+      <div>
+        <h1>Link Health Checker</h1>
+        <p>Enter a URL to check its health and track it for later polling.</p>
+      </div>
+      <form action="/links" method="post">
+        <input type="text" name="url" placeholder="https://example.com" required />
+        <button type="submit">Add Link</button>
+      </form>
+      <form action="/refresh" method="post">
+        <button type="submit" onclick="return confirm('Refresh all links now? This will run checks immediately.');">Refresh All</button>
+      </form>
+    </div>
 
     <table>
       <thead>
