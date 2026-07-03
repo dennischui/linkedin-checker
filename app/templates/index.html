@@ -11,6 +11,8 @@
       button { padding: 0.5rem 1rem; }
       .healthy { color: green; font-weight: bold; }
       .unhealthy { color: red; font-weight: bold; }
+      .hidden-row { color: #777; background: #f7f7f7; }
+      .hidden-row td { opacity: 0.7; }
       table { border-collapse: collapse; width: 100%; }
       th, td { border: 1px solid #ccc; padding: 0.5rem; text-align: left; }
     </style>
@@ -24,34 +26,38 @@
       <button type="submit">Add Link</button>
     </form>
 
+    <form action="/refresh" method="post" style="display:inline; margin-left: 1rem;">
+      <button type="submit" onclick="return confirm('Refresh all links now? This will run checks immediately.');">Refresh All</button>
+    </form>
+
     <table>
       <thead>
         <tr>
           <th>URL</th>
-          <th>Status</th>
-          <th>Last Status Code</th>
-          <th>Last Checked</th>
-          <th>Title</th>
           <th>Heading</th>
           <th>Applicants</th>
+          <th>Title</th>
+          <th>Last Checked</th>
+          <th>Status</th>
+          <th>Last Status Code</th>
         </tr>
       </thead>
       <tbody>
         {% for link in links %}
-        <tr>
+        <tr class="{% if link.view == 0 %}hidden-row{% endif %}">
           <td>{{ link.url }}</td>
-          <td class="{{ link.status }}">{{ link.status }}</td>
-          <td>{{ link.last_status_code }}</td>
-          <td>{{ link.last_checked }}</td>
-          <td>{{ link.title or "-" }}</td>
           <td>{{ link.heading or "-" }}</td>
           <td>{{ link.n_applicants or "-" }}</td>
+          <td>{{ link.title or "-" }}</td>
+          <td>{{ link.last_checked }}</td>
+          <td class="{{ link.status }}">{{ link.status }}</td>
+          <td>{{ link.last_status_code }}</td>
           <td>
             <a href="/links/{{ link.id }}/chart" target="_blank" rel="noopener noreferrer">
               <button type="button">Plot Applicants</button>
             </a>
             <form action="/links/{{ link.id }}/delete" method="post" style="margin: 0; margin-top: 0.25rem;">
-              <button type="submit" onclick="return confirm('Remove this listing?');">Remove</button>
+              <button type="submit">Stop Polling</button>
             </form>
           </td>
         </tr>

@@ -17,11 +17,34 @@ import httpx
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from contextlib import asynccontextmanager
+# scheduler
+from apscheduler.schedulers.background import BackgroundScheduler
 
 DB_PATH = Path(__file__).resolve().parent / "links.db"
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
 
-app = FastAPI(title="Link Checker")
+scheduler = BackgroundScheduler()
+
+def start_scheduler():
+    if not scheduler.running:
+        scheduler.add_job(poll_links, 'interval', hours=1, max_instances=1)
+        scheduler.start()
+
+def stop_scheduler():
+    if scheduler.running:
+        scheduler.shutdown()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    start_scheduler()   
+    print("Scheduler started.") 
+    yield
+    stop_scheduler()
+    print("Scheduler stopped.")
+
+app = FastAPI(title="Link Checker", lifespan=lifespan)
+
 
 
 class LinkHTMLParser(HTMLParser):
@@ -78,7 +101,8 @@ def init_db() -> None:
             url TEXT NOT NULL UNIQUE,
             title TEXT,
             heading TEXT,
-            next_poll_at TEXT
+            next_poll_at TEXT,
+            view INTEGER DEFAULT 1
         )
         """
     )
@@ -95,6 +119,12 @@ def init_db() -> None:
         )
         """
     )
+    conn.commit()
+    # Ensure legacy DBs get the `view` column
+    cur = conn.execute("PRAGMA table_info(links)")
+    cols = [r[1] for r in cur.fetchall()]
+    if "view" not in cols:
+        conn.execute("ALTER TABLE links ADD COLUMN view INTEGER DEFAULT 1")
     conn.commit()
     conn.close()
 
@@ -138,12 +168,11 @@ async def index(request: Request):
     conn = get_db_connection()
     rows = conn.execute(
         """
-        SELECT l.id, l.url, l.title, l.heading,
+        SELECT l.id, l.url, l.title, l.heading, l.view,
                s.status, s.last_status_code, s.last_checked, s.n_applicants
         FROM links l
         LEFT JOIN link_snapshots s ON s.link_id = l.id
-        WHERE s.id = (SELECT MAX(id) FROM link_snapshots WHERE link_id = l.id)
-        OR s.id IS NULL
+        WHERE s.id = (SELECT MAX(id) FROM link_snapshots WHERE link_id = l.id) OR s.id IS NULL
         ORDER BY l.id DESC
         """
     ).fetchall()
@@ -178,7 +207,7 @@ async def create_link(url: str = Form(...)):
     conn = get_db_connection()
     next_poll_value = (datetime.now() + timedelta(hours=12)).isoformat() if status == "healthy" else None
     cursor = conn.execute(
-        "INSERT INTO links (url, title, heading, next_poll_at) VALUES (?, ?, ?, ?) ON CONFLICT(url) DO UPDATE SET title = excluded.title, heading = excluded.heading RETURNING id",
+        "INSERT INTO links (url, title, heading, next_poll_at, view) VALUES (?, ?, ?, ?, 1) ON CONFLICT(url) DO UPDATE SET title = excluded.title, heading = excluded.heading, view = 1 RETURNING id",
         (
             cleaned_url,
             title,
@@ -202,11 +231,17 @@ async def create_link(url: str = Form(...)):
     conn.close()
     return RedirectResponse(url="/", status_code=303)
 
+@app.post("/refresh")
+async def refresh_links():
+    # Run the poll_links function in a separate thread to avoid blocking
+    threading.Thread(target=poll_links).start()
+    return RedirectResponse(url="/", status_code=303)
 
 @app.post("/links/{link_id}/delete")
 async def delete_link(link_id: int):
     conn = get_db_connection()
-    conn.execute("DELETE FROM links WHERE id = ?", (link_id,))
+    # soft-delete by hiding from view
+    conn.execute("UPDATE links SET view = 0 WHERE id = ?", (link_id,))
     conn.commit()
     conn.close()
     return RedirectResponse(url="/", status_code=303)
@@ -241,70 +276,63 @@ async def chart_link(link_id: int):
 
 
 def poll_links() -> None:
-    while True:
+    print("Polling links...")
+    conn = get_db_connection()
+    rows = conn.execute(
+        """
+        SELECT l.id, l.url
+        FROM links l
+        WHERE l.view = 1
+        """).fetchall()
+
+    conn.close()
+
+    for row in rows:
+        print(row["url"])
+        try:
+            response = httpx.get(row["url"], timeout=10.0)
+        except httpx.HTTPError:
+            status_code = 0
+            status = "unhealthy"
+            title = None
+            heading = None
+            n_applicants = None
+        else:
+            status_code = response.status_code
+            status = determine_health_status(status_code)
+            title = None
+            heading = None
+            n_applicants = None
+            if response.is_success:
+                title, heading, n_applicants = extract_page_fields(response.text)
+
         conn = get_db_connection()
-        rows = conn.execute(
-            """
-            SELECT l.id, l.url
-            FROM links l
-            JOIN link_snapshots s ON s.link_id = l.id
-            WHERE s.id = (SELECT MAX(id) FROM link_snapshots WHERE link_id = l.id)
-              AND s.status = 'healthy'
-              AND (l.next_poll_at IS NULL OR l.next_poll_at <= ?)
-            """,
-            (datetime.utcnow().isoformat(),),
-        ).fetchall()
-        conn.close()
-
-        for row in rows:
-            try:
-                response = httpx.get(row["url"], timeout=10.0)
-            except httpx.HTTPError:
-                status_code = 0
-                status = "unhealthy"
-                title = None
-                heading = None
-                n_applicants = None
-            else:
-                status_code = response.status_code
-                status = determine_health_status(status_code)
-                title = None
-                heading = None
-                n_applicants = None
-                if response.is_success:
-                    title, heading, n_applicants = extract_page_fields(response.text)
-
-            conn = get_db_connection()
-            next_poll_value = (datetime.utcnow() + timedelta(hours=12)).isoformat() if status == "healthy" else None
-            if status == "healthy":
-                conn.execute(
-                    "UPDATE links SET title = ?, heading = ?, next_poll_at = ? WHERE id = ?",
-                    (
-                        title,
-                        heading,
-                        next_poll_value,
-                        row["id"],
-                    ),
-                )
-            else:
-                conn.execute(
-                    "UPDATE links SET next_poll_at = ? WHERE id = ?",
-                    (next_poll_value, row["id"]),
-                )
+        next_poll_value = (datetime.now() + timedelta(hours=12)).isoformat() if status == "healthy" else None
+        if status == "healthy":
             conn.execute(
-                "INSERT INTO link_snapshots (link_id, status, last_status_code, last_checked, n_applicants) VALUES (?, ?, ?, ?, ?)",
+                "UPDATE links SET title = ?, heading = ?, next_poll_at = ? WHERE id = ?",
                 (
+                    title,
+                    heading,
+                    next_poll_value,
                     row["id"],
-                    status,
-                    status_code,
-                    datetime.utcnow().isoformat(),
-                    n_applicants,
                 ),
             )
-            conn.commit()
-            conn.close()
-
-        time.sleep(43200) # 
-
-
-threading.Thread(target=poll_links, daemon=True).start()
+        else:
+            conn.execute(
+                "UPDATE links SET next_poll_at = ? WHERE id = ?",
+                (next_poll_value, row["id"],),
+            )
+        conn.execute(
+            "INSERT INTO link_snapshots (link_id, status, last_status_code, last_checked, n_applicants) VALUES (?, ?, ?, ?, ?)",
+            (
+                row["id"],
+                status,
+                status_code,
+                datetime.now().isoformat(),
+                n_applicants,
+            ),
+        )
+        conn.commit()
+        conn.close()
+        print(f"Polled {row['url']}: status={status}, code={status_code}, applicants={n_applicants}")
