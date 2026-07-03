@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Link Checker</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 2rem; }
+      form { margin-bottom: 1.5rem; }
+      input[type="text"] { width: 300px; padding: 0.5rem; }
+      button { padding: 0.5rem 1rem; }
+      .healthy { color: green; font-weight: bold; }
+      .unhealthy { color: red; font-weight: bold; }
+      table { border-collapse: collapse; width: 100%; }
+      th, td { border: 1px solid #ccc; padding: 0.5rem; text-align: left; }
+    </style>
+  </head>
+  <body>
+    <h1>Link Health Checker</h1>
+    <p>Enter a URL to check its health and track it for later polling.</p>
+
+    <form action="/links" method="post">
+      <input type="text" name="url" placeholder="https://example.com" required />
+      <button type="submit">Add Link</button>
+    </form>
+
+    <table>
+      <thead>
+        <tr>
+          <th>URL</th>
+          <th>Status</th>
+          <th>Last Status Code</th>
+          <th>Last Checked</th>
+          <th>Title</th>
+          <th>Heading</th>
+          <th>Applicants</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for link in links %}
+        <tr>
+          <td>{{ link.url }}</td>
+          <td class="{{ link.status }}">{{ link.status }}</td>
+          <td>{{ link.last_status_code }}</td>
+          <td>{{ link.last_checked }}</td>
+          <td>{{ link.title or "-" }}</td>
+          <td>{{ link.heading or "-" }}</td>
+          <td>{{ link.n_applicants or "-" }}</td>
+          <td>
+            <a href="/links/{{ link.id }}/chart" target="_blank" rel="noopener noreferrer">
+              <button type="button">Plot Applicants</button>
+            </a>
+            <form action="/links/{{ link.id }}/delete" method="post" style="margin: 0; margin-top: 0.25rem;">
+              <button type="submit" onclick="return confirm('Remove this listing?');">Remove</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8">No links yet.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </body>
+</html>
